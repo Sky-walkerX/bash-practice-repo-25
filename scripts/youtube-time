@@ -1,8 +1,49 @@
 #!/usr/bin/env bash
 
 # TODO: Make a script to download youtube video from given timeframes
-#
-# E.g.: youtube-time 2:00 4:00 tutorial.mkv "https://www.youtube.com/watch?v=SPwyp2NG-bE"
-# The above command should create a output file which contains the video from 2 min to 4 min.
-#
-# Refer: youtube-dl and ffmpeg commands for this
+
+
+if [ "$#" -ne 4 ]; then
+    echo "Usage: $0 <start_time> <end_time> <output_file> <youtube_url>"
+    echo "Example: $0 2:00 4:00 clip.mp4 \"https://www.youtube.com/watch?v=SPwyp2NG-bE\""
+    exit 1
+fi
+
+start_time="$1"
+end_time="$2"
+output_file="$3"
+youtube_url="$4"
+temp_pattern="temp_video.%(ext)s"
+
+# Check for required dependencies
+for cmd in yt-dlp ffmpeg; do
+    if ! command -v "$cmd" &> /dev/null; then
+        echo "[ERROR] '$cmd' is not installed. Please install it and try again."
+        exit 1
+    fi
+done
+
+echo "[INFO] Downloading video from: $youtube_url..."
+if ! yt-dlp -o "$temp_pattern" "$youtube_url"; then
+    echo "[ERROR] Video download failed!"
+    exit 1
+fi
+
+# Locate the downloaded file
+downloaded_file=$(ls temp_video.* 2>/dev/null | head -n 1)
+
+if [ -z "$downloaded_file" ]; then
+    echo "[ERROR] Could not find the downloaded video file!"
+    exit 1
+fi
+
+# Trim the video
+echo "[INFO] Extracting clip from $start_time to $end_time -> $output_file..."
+if ! ffmpeg -y -i "$downloaded_file" -ss "$start_time" -to "$end_time" -c copy "$output_file"; then
+    echo "[ERROR] Failed to extract video segment!"
+    rm -v "$downloaded_file"
+    exit 1
+fi
+
+rm -v "$downloaded_file"
+echo "[SUCCESS] Clip saved as '$output_file'."
